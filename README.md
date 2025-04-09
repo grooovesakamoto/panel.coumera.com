@@ -74,3 +74,4 @@ Cloud Runにデプロイするためのコントロールパネルアプリケ�
 - `GOOGLE_CLOUD_STORAGE_BUCKET`: 画像を保存するGCS（Google Cloud Storage）バケット名
 - `NEXTAUTH_SECRET`: NextAuth.jsで使用する秘密鍵
 - `NEXTAUTH_URL`: アプリケーションのベースURL
+# 開発メモ
