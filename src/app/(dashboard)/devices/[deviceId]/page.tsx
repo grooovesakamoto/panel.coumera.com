@@ -40,6 +40,12 @@ import {
   CardFooter 
 } from '@/components/ui/card'
 
+// インターフェース定義を上部に移動
+interface Point {
+  x: number
+  y: number
+}
+
 export default function DeviceDetailPage() {
   const params = useParams()
   const { devices, loading, error } = useDevices()
@@ -503,6 +509,11 @@ export default function DeviceDetailPage() {
       return;
     }
     
+    if (!actcastClient) {
+      toast.error('APIクライアントの初期化に失敗しました');
+      return;
+    }
+    
     setIsAddingNetwork(true);
     
     try {
@@ -512,33 +523,54 @@ export default function DeviceDetailPage() {
         password: newPassword || undefined 
       };
       
-      // 現在のネットワーク設定に追加
-      const updatedNetworks = [...wifiNetworks, newNetwork];
-      
-      // グループIDを取得
-      const groupId = device.id.split('/')[0];
-      
-      // ActcastClientのインスタンスを作成
-      const actcastClient = new ActcastClient(
-        groupId === '2236' 
-          ? { apiToken: '3RxIXlc4z9O3feKP279B6OlDlCI6y42a', groupId: 2236 }
-          : { apiToken: 'dUGqz6SwJyrcqQX8QsOD2727eTSQ4A3a', groupId: 2581 }
-      );
-      
-      // APIを呼び出してWi-Fi設定を更新
-      await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
-      
-      // フロントエンドのステートを更新
-      setWifiNetworks(updatedNetworks);
-      
-      // 入力フィールドをクリア
-      setNewSsid('');
-      setNewPassword('');
-      
-      toast.success('Wi-Fi設定を追加しました');
+      // 既存のSSIDと重複していないか確認
+      const existingNetwork = wifiNetworks.find(network => network.ssid === newSsid);
+      if (existingNetwork) {
+        // 確認ダイアログを表示
+        if (!confirm(`「${newSsid}」は既に登録されています。設定を上書きしますか？`)) {
+          setIsAddingNetwork(false);
+          return;
+        }
+        
+        // 上書きの場合は既存のものを削除
+        const filteredNetworks = wifiNetworks.filter(network => network.ssid !== newSsid);
+        // 新しい設定を追加
+        const updatedNetworks = [...filteredNetworks, newNetwork];
+        
+        // APIを呼び出してWi-Fi設定を更新
+        await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+        
+        // フロントエンドのステートを更新
+        setWifiNetworks(updatedNetworks);
+        
+        // 入力フィールドをクリア
+        setNewSsid('');
+        setNewPassword('');
+        
+        toast.success(`Wi-Fi設定「${newSsid}」を更新しました`);
+      } else {
+        // 現在のネットワーク設定に追加
+        const updatedNetworks = [...wifiNetworks, newNetwork];
+        
+        // APIを呼び出してWi-Fi設定を更新
+        await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+        
+        // フロントエンドのステートを更新
+        setWifiNetworks(updatedNetworks);
+        
+        // 入力フィールドをクリア
+        setNewSsid('');
+        setNewPassword('');
+        
+        toast.success(`Wi-Fi設定「${newSsid}」を追加しました`);
+      }
     } catch (error) {
       console.error('Wi-Fi設定の追加に失敗しました:', error);
-      toast.error('Wi-Fi設定の追加に失敗しました');
+      if (error instanceof Error) {
+        toast.error(`Wi-Fi設定の追加に失敗しました: ${error.message}`);
+      } else {
+        toast.error('Wi-Fi設定の追加に失敗しました');
+      }
     } finally {
       setIsAddingNetwork(false);
     }
@@ -551,7 +583,12 @@ export default function DeviceDetailPage() {
       return;
     }
     
-    // 削除前に確認
+    if (!actcastClient) {
+      toast.error('APIクライアントの初期化に失敗しました');
+      return;
+    }
+    
+    // 削除前に確認（確認ダイアログをカスタムUIに変更することも検討可能）
     if (!confirm(`Wi-Fi設定「${ssid}」を削除してもよろしいですか？`)) {
       return;
     }
@@ -560,26 +597,20 @@ export default function DeviceDetailPage() {
       // 現在のネットワーク設定から削除
       const updatedNetworks = wifiNetworks.filter(network => network.ssid !== ssid);
       
-      // グループIDを取得
-      const groupId = device.id.split('/')[0];
-      
-      // ActcastClientのインスタンスを作成
-      const actcastClient = new ActcastClient(
-        groupId === '2236' 
-          ? { apiToken: '3RxIXlc4z9O3feKP279B6OlDlCI6y42a', groupId: 2236 }
-          : { apiToken: 'dUGqz6SwJyrcqQX8QsOD2727eTSQ4A3a', groupId: 2581 }
-      );
-      
       // APIを呼び出してWi-Fi設定を更新
       await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
       
       // フロントエンドのステートを更新
       setWifiNetworks(updatedNetworks);
       
-    toast.success(`Wi-Fi設定「${ssid}」を削除しました`);
+      toast.success(`Wi-Fi設定「${ssid}」を削除しました`);
     } catch (error) {
       console.error('Wi-Fi設定の削除に失敗しました:', error);
-      toast.error('Wi-Fi設定の削除に失敗しました');
+      if (error instanceof Error) {
+        toast.error(`Wi-Fi設定の削除に失敗しました: ${error.message}`);
+      } else {
+        toast.error('Wi-Fi設定の削除に失敗しました');
+      }
     }
   }
 
@@ -1612,122 +1643,233 @@ export default function DeviceDetailPage() {
     }
   }
 
+  // 信号強度をビジュアル化して表示する関数
+  const SignalStrengthIndicator = ({ strength }: { strength: number | undefined }) => {
+    if (strength === undefined) return <span>-</span>;
+    
+    // 信号強度が良い順に: 優良, 良, 可, 弱
+    let status: 'excellent' | 'good' | 'fair' | 'poor' = 'poor';
+    let bars = 1;
+    
+    // dBm値を基にレベル分け（一般的なWi-Fi強度の目安）
+    if (strength >= -50) {
+      status = 'excellent';
+      bars = 4;
+    } else if (strength >= -60) {
+      status = 'good';
+      bars = 3;
+    } else if (strength >= -70) {
+      status = 'fair';
+      bars = 2;
+    }
+    
+    // 色のマッピング
+    const colors = {
+      excellent: 'bg-green-500',
+      good: 'bg-green-400',
+      fair: 'bg-yellow-400',
+      poor: 'bg-red-400'
+    };
+    
+    return (
+      <div className="flex items-center">
+        <div className="flex space-x-1 mr-2">
+          {[1, 2, 3, 4].map((level) => (
+            <div 
+              key={level} 
+              className={`w-1 rounded-sm ${level <= bars ? colors[status] : 'bg-gray-200'}`}
+              style={{ height: `${level * 3}px` }}
+            />
+          ))}
+        </div>
+        <span className="text-sm">{strength} dBm</span>
+      </div>
+    );
+  };
+
   // ネットワーク情報セクションを改修
-  const NetworkInfoSection = () => (
-    <div className="bg-white shadow rounded-lg p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-gray-900">ネットワーク情報</h2>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="text-sm">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Wi-Fi追加
-            </Button>
-          </DialogTrigger>
-          <DialogContent 
-            className="sm:max-w-[425px] pointer-events-auto" 
-            onInteractOutside={(e) => e.preventDefault()} 
-            onEscapeKeyDown={(e) => e.preventDefault()}
-          >
-            <DialogHeader>
-              <DialogTitle>Wi-Fi設定の追加</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="ssid">SSID</Label>
-                <Input
-                  id="ssid"
-                  value={newSsid}
-                  onChange={(e) => setNewSsid(e.target.value)}
-                  placeholder="ネットワーク名"
-                  className="z-10"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="password">パスワード</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="パスワード"
-                  className="z-10"
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex flex-row justify-end space-x-2">
-              <Button 
-                type="submit" 
-                onClick={handleAddWifiNetwork}
-                disabled={isAddingNetwork}
-              >
-                {isAddingNetwork ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    追加中...
-                  </>
-                ) : '追加'}
+  const NetworkInfoSection = () => {
+    // 削除確認用の状態
+    const [wifiToDelete, setWifiToDelete] = useState<string | null>(null);
+    
+    return (
+      <div className="bg-white shadow rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium text-gray-900">ネットワーク情報</h2>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-sm">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Wi-Fi追加
               </Button>
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  閉じる
+            </DialogTrigger>
+            <DialogContent 
+              className="sm:max-w-[425px] pointer-events-auto" 
+              onInteractOutside={(e) => e.preventDefault()} 
+              onEscapeKeyDown={(e) => e.preventDefault()}
+            >
+              <DialogHeader>
+                <DialogTitle>Wi-Fi設定の追加</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="ssid">SSID</Label>
+                  <Input
+                    id="ssid"
+                    value={newSsid}
+                    onChange={(e) => setNewSsid(e.target.value)}
+                    placeholder="ネットワーク名"
+                    className="z-10"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="password">パスワード</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="パスワード"
+                    className="z-10"
+                  />
+                </div>
+              </div>
+              <DialogFooter className="flex flex-row justify-end space-x-2">
+                <Button 
+                  type="submit" 
+                  onClick={handleAddWifiNetwork}
+                  disabled={isAddingNetwork}
+                >
+                  {isAddingNetwork ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      追加中...
+                    </>
+                  ) : '追加'}
                 </Button>
-              </DialogClose>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    閉じる
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+        
+        {/* Wi-Fi接続状態 */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-4">
+          <h3 className="text-sm font-medium text-gray-900 mb-3">現在の接続状態</h3>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-medium text-gray-500">接続中のSSID</dt>
+              <dd className="mt-1 text-sm text-gray-900 flex items-center">
+                {device?.status?.connected_ssid ? (
+                  <>
+                    <Wifi className="h-4 w-4 mr-1 text-green-500" />
+                    {device.status.connected_ssid}
+                  </>
+                ) : (
+                  <span className="text-gray-500">未接続</span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">電波強度</dt>
+              <dd className="mt-1">
+                <SignalStrengthIndicator strength={device?.status?.signal_strength} />
+              </dd>
+            </div>
+            {device?.status?.foundness === 'Found' && (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500 mt-2">
+                  最終更新: {new Date(device.status.last_updated).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </dl>
+        </div>
+        
+        {/* 登録済みWi-Fi設定 */}
+        <h3 className="text-sm font-medium text-gray-900 mb-2">登録済みWi-Fi設定</h3>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {wifiNetworks.length > 0 ? (
+            wifiNetworks.map((network, index) => (
+              <div 
+                key={index} 
+                className={`flex items-center justify-between p-2 rounded ${
+                  device?.status?.connected_ssid === network.ssid 
+                    ? 'bg-green-50 border border-green-100' 
+                    : 'bg-gray-50'
+                }`}
+              >
+                <div className="text-sm">
+                  <div className="font-medium flex items-center">
+                    {device?.status?.connected_ssid === network.ssid && (
+                      <Wifi className="h-3 w-3 mr-1 text-green-500" />
+                    )}
+                    {network.ssid}
+                  </div>
+                  {network.password && (
+                    <div className="text-xs text-gray-500">パスワード: ********</div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWifiToDelete(network.ssid)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))
+          ) : (
+            <div className="text-sm text-gray-500 py-2">
+              登録済みのWi-Fi設定はありません
+            </div>
+          )}
+        </div>
+        
+        {/* Wi-Fi削除確認ダイアログ */}
+        <Dialog open={!!wifiToDelete} onOpenChange={(open) => !open && setWifiToDelete(null)}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Wi-Fi設定の削除</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-gray-700">
+                Wi-Fi設定「{wifiToDelete}」を削除してもよろしいですか？
+              </p>
+              {device?.status?.connected_ssid === wifiToDelete && (
+                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                  <strong>警告:</strong> 現在接続中のネットワークです。削除するとデバイスの接続が切断される可能性があります。
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (wifiToDelete) {
+                    handleRemoveWifiNetwork(wifiToDelete);
+                    setWifiToDelete(null);
+                  }
+                }}
+              >
+                削除する
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setWifiToDelete(null)}
+              >
+                キャンセル
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
-      <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
-        <div>
-          <dt className="text-sm font-medium text-gray-500">接続中のSSID</dt>
-          <dd className="mt-1 text-sm text-gray-900">{device?.status?.connected_ssid || '-'}</dd>
-        </div>
-        <div>
-          <dt className="text-sm font-medium text-gray-500">電波強度</dt>
-          <dd className="mt-1 text-sm text-gray-900">
-            {device?.status?.signal_strength ? `${device.status.signal_strength} dBm` : '-'}
-          </dd>
-        </div>
-      </dl>
-      
-      <h3 className="text-sm font-medium text-gray-900 mb-2">登録済みWi-Fi設定</h3>
-      <div className="space-y-2 max-h-48 overflow-y-auto">
-        {wifiNetworks.length > 0 ? (
-          wifiNetworks.map((network, index) => (
-            <div 
-              key={index} 
-              className="flex items-center justify-between bg-gray-50 p-2 rounded"
-            >
-              <div className="text-sm">
-                <div className="font-medium">{network.ssid}</div>
-                {network.password && (
-                  <div className="text-xs text-gray-500">パスワード: ********</div>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveWifiNetwork(network.ssid)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))
-        ) : (
-          <div className="text-sm text-gray-500 py-2">
-            登録済みのWi-Fi設定はありません
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  
-  // 直接送信フォーマットを選択
-  
-  // ラップ送信フォーマットを選択
-  
-  // ダイアログをキャンセル
+    )
+  }
 
   if (loading) {
     return (
@@ -1897,11 +2039,6 @@ export default function DeviceDetailPage() {
       default:
         return {}
     }
-  }
-
-  interface Point {
-    x: number
-    y: number
   }
 
   // デフォルト設定値を取得する関数
