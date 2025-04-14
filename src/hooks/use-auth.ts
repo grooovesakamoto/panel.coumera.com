@@ -1,12 +1,11 @@
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { User, Role } from '@prisma/client';
 
 type AuthUser = {
   id: string;
   email: string;
   name?: string | null;
-  role: Role;
+  role: string;
   clientId?: string | null;
 };
 
