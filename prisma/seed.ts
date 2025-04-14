@@ -1,130 +1,114 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
-
-console.log('Starting seed script...');
-
-// データベース接続情報の確認
-console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set (hidden for security)' : 'Not set');
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('データベースシード処理を開始...');
-
-  // システム管理者作成
-  const adminPassword = await hash('admin123', 10);
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@coumera.com' },
-    update: {
-      password: adminPassword,
-      isActive: true,
-      role: Role.ADMIN
-    },
+  // デフォルト管理者ユーザーの作成
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {},
     create: {
-      email: 'admin@coumera.com',
+      email: 'admin@example.com',
       name: 'システム管理者',
-      password: adminPassword,
-      role: Role.ADMIN,
-      isActive: true
+      password: await hash('Admin123456', 10),
+      role: 'ADMIN',
+      isActive: true,
     },
   });
-  
-  console.log(`管理者ユーザー作成完了: ${admin.email} (ID: ${admin.id})`);
-  
-  // デモクライアント作成
-  const demoClient = await prisma.client.upsert({
-    where: { name: 'デモクライアント' },
-    update: {
-      contactPerson: 'デモ担当者',
-      contactEmail: 'demo@example.com',
-      description: 'デモ用のクライアントアカウント'
-    },
+
+  console.log('デフォルト管理者ユーザーを作成しました:', adminUser);
+
+  // サンプルクライアントの作成
+  const sampleClient = await prisma.client.upsert({
+    where: { code: 'SAMPLE001' },
+    update: {},
     create: {
-      name: 'デモクライアント',
-      description: 'デモ用のクライアントアカウント',
-      contactPerson: 'デモ担当者',
-      contactEmail: 'demo@example.com',
-      contactPhone: '03-1234-5678',
+      name: 'サンプル株式会社',
+      code: 'SAMPLE001',
+      description: 'システムのデモンストレーション用サンプルクライアント',
+      email: 'contact@sample.example.com',
+      phoneNumber: '03-1234-5678',
+      address: '東京都千代田区サンプル1-1-1',
+      website: 'https://sample.example.com',
+      isActive: true,
+      settings: {},
+      contractStart: new Date(),
+      contractEnd: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
     },
   });
-  
-  console.log(`デモクライアント作成完了: ${demoClient.name} (ID: ${demoClient.id})`);
-  
-  // クライアント管理者作成
-  const clientAdminPassword = await hash('demo123', 10);
-  const clientAdmin = await prisma.user.upsert({
-    where: { email: 'clientadmin@example.com' },
-    update: {
-      password: clientAdminPassword,
-      role: Role.CLIENT_ADMIN,
-      clientId: demoClient.id,
-      isActive: true
-    },
+
+  console.log('サンプルクライアントを作成しました:', sampleClient);
+
+  // クライアント管理者の作成
+  const clientAdminUser = await prisma.user.upsert({
+    where: { email: 'client-admin@example.com' },
+    update: {},
     create: {
-      email: 'clientadmin@example.com',
+      email: 'client-admin@example.com',
       name: 'クライアント管理者',
-      password: clientAdminPassword,
-      role: Role.CLIENT_ADMIN,
-      clientId: demoClient.id,
+      password: await hash('ClientAdmin123', 10),
+      role: 'CLIENT_ADMIN',
       isActive: true,
-      createdBy: admin.id
+      clientId: sampleClient.id,
     },
   });
-  
-  console.log(`クライアント管理者作成完了: ${clientAdmin.email} (ID: ${clientAdmin.id})`);
 
-  // 開発者ユーザー作成
-  const developerPassword = await hash('developer123', 10);
-  const developer = await prisma.user.upsert({
-    where: { email: 'developer@example.com' },
-    update: {
-      password: developerPassword,
-      role: Role.DEVELOPER,
-      clientId: demoClient.id,
-      isActive: true
-    },
+  console.log('クライアント管理者ユーザーを作成しました:', clientAdminUser);
+
+  // 一般ユーザーの作成
+  const normalUser = await prisma.user.upsert({
+    where: { email: 'user@example.com' },
+    update: {},
     create: {
-      email: 'developer@example.com',
-      name: '開発者ユーザー',
-      password: developerPassword,
-      role: Role.DEVELOPER,
-      clientId: demoClient.id,
+      email: 'user@example.com',
+      name: '一般ユーザー',
+      password: await hash('User123456', 10),
+      role: 'USER',
       isActive: true,
-      createdBy: clientAdmin.id
+      clientId: sampleClient.id,
     },
   });
-  
-  console.log(`開発者ユーザー作成完了: ${developer.email} (ID: ${developer.id})`);
 
-  // 閲覧ユーザー作成
-  const viewerPassword = await hash('viewer123', 10);
-  const viewer = await prisma.user.upsert({
-    where: { email: 'viewer@example.com' },
-    update: {
-      password: viewerPassword,
-      role: Role.VIEWER,
-      clientId: demoClient.id,
-      isActive: true
-    },
+  console.log('一般ユーザーを作成しました:', normalUser);
+
+  // サンプルデバイスの作成
+  const sampleDevice = await prisma.device.upsert({
+    where: { serialNumber: 'DEV123456' },
+    update: {},
     create: {
-      email: 'viewer@example.com',
-      name: '閲覧専用ユーザー',
-      password: viewerPassword,
-      role: Role.VIEWER,
-      clientId: demoClient.id,
+      name: 'サンプルカメラ',
+      type: 'CAMERA',
+      serialNumber: 'DEV123456',
+      status: 'ONLINE',
+      location: '東京オフィス 1階入口',
+      ipAddress: '192.168.1.100',
       isActive: true,
-      createdBy: clientAdmin.id
+      settings: {},
+      clientId: sampleClient.id,
     },
   });
-  
-  console.log(`閲覧ユーザー作成完了: ${viewer.email} (ID: ${viewer.id})`);
 
-  console.log('データベースシード処理が完了しました');
+  console.log('サンプルデバイスを作成しました:', sampleDevice);
+
+  // サンプルプロジェクトの作成
+  const sampleProject = await prisma.project.create({
+    data: {
+      name: 'サンプルプロジェクト',
+      description: 'これはデモンストレーション用のサンプルプロジェクトです',
+      status: 'IN_PROGRESS',
+      startDate: new Date(),
+      endDate: new Date(new Date().setMonth(new Date().getMonth() + 3)),
+      clientId: sampleClient.id,
+    },
+  });
+
+  console.log('サンプルプロジェクトを作成しました:', sampleProject);
 }
 
 main()
   .catch((e) => {
-    console.error('シード処理でエラーが発生しました:', e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {

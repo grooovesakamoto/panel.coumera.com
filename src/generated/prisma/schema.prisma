@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// クライアント（顧客）モデル
+model Client {
+  id            String    @id @default(uuid())
+  name          String // クライアント名
+  code          String?   @unique // クライアント識別コード
+  description   String? // クライアントの説明
+  address       String? // 住所
+  phoneNumber   String? // 電話番号
+  email         String? // 連絡先メール
+  website       String? // Webサイト
+  logo          String? // ロゴ画像URL
+  isActive      Boolean   @default(true) // アクティブステータス
+  settings      Json? // クライアント固有の設定（JSON形式）
+  contractStart DateTime? // 契約開始日
+  contractEnd   DateTime? // 契約終了日
+
+  // リレーション
+  users    User[] // クライアントに所属するユーザー
+  devices  Device[] // クライアントに関連付けられたデバイス
+  projects Project[] // クライアントのプロジェクト
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ユーザーモデル
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String
+  password  String
+  role      String // ADMIN, CLIENT_ADMIN, USER, VIEWER など
+  phone     String? // 電話番号
+  avatar    String? // アバター画像URL
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+
+  // リレーション
+  clientId      String?
+  client        Client?        @relation(fields: [clientId], references: [id])
+  sessions      Session[]
+  notifications Notification[]
+  activities    Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// セッション管理（認証用）
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+
+  createdAt DateTime @default(now())
+}
+
+// デバイスモデル
+model Device {
+  id           String  @id @default(uuid())
+  name         String
+  type         String // カメラ、センサーなど
+  serialNumber String? @unique
+  status       String // オンライン、オフラインなど
+  location     String?
+  ipAddress    String?
+  settings     Json? // デバイス固有の設定
+  isActive     Boolean @default(true)
+
+  // リレーション
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// プロジェクトモデル
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  status      String // 進行中、完了など
+  startDate   DateTime?
+  endDate     DateTime?
+
+  // リレーション
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// アクティビティログ
+model Activity {
+  id        String  @id @default(uuid())
+  action    String // ログイン、データ更新など
+  details   String?
+  ipAddress String?
+
+  // リレーション
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// 通知モデル
+model Notification {
+  id      String  @id @default(uuid())
+  type    String // アラート、情報など
+  title   String
+  message String
+  isRead  Boolean @default(false)
+
+  // リレーション
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}

@@ -6,8 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-1.1.x", "linux-musl"]
-  engineType = "library"
 }
 
 datasource db {
@@ -15,64 +13,127 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  password      String
-  role          Role      @default(VIEWER)
-  phone         String?
-  isActive      Boolean   @default(true)
-  lastLogin     DateTime?
-  clientId      String?
-  client        Client?   @relation(fields: [clientId], references: [id])
+// クライアント（顧客）モデル
+model Client {
+  id            String    @id @default(uuid())
+  name          String    // クライアント名
+  code          String?   @unique // クライアント識別コード
+  description   String?   // クライアントの説明
+  address       String?   // 住所
+  phoneNumber   String?   // 電話番号
+  email         String?   // 連絡先メール
+  website       String?   // Webサイト
+  logo          String?   // ロゴ画像URL
+  isActive      Boolean   @default(true) // アクティブステータス
+  settings      Json?     // クライアント固有の設定（JSON形式）
+  contractStart DateTime? // 契約開始日
+  contractEnd   DateTime? // 契約終了日
+  
+  // リレーション
+  users         User[]    // クライアントに所属するユーザー
+  devices       Device[]  // クライアントに関連付けられたデバイス
+  projects      Project[] // クライアントのプロジェクト
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  createdBy     String?   // 作成者のID
 }
 
-model Client {
-  id              String    @id @default(cuid())
-  name            String    @unique
-  description     String?
-  contactPerson   String?
-  contactEmail    String?
-  contactPhone    String?
-  address         String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  devices         Device[]
-  users           User[]
-}
-
-model Device {
-  id            String   @id @default(cuid())
+// ユーザーモデル
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
   name          String
-  actName       String
-  status        String   @default("offline")
-  lastPing      DateTime @default(now())
-  version       String
-  clientId      String
-  client        Client   @relation(fields: [clientId], references: [id])
-  createdAt     DateTime @default(now())
-  deviceId      String   @unique
-  hostname      String
-  hardwareId    String   @unique
-  wifiConfigs   Json
-  updateBlocked Boolean  @default(false)
-  deviceStatus  Json
-  installedApps String[]
+  password      String
+  role          String    // ADMIN, CLIENT_ADMIN, USER, VIEWER など
+  phone         String?   // 電話番号
+  avatar        String?   // アバター画像URL
+  isActive      Boolean   @default(true)
+  lastLogin     DateTime?
+  
+  // リレーション
+  clientId      String?
+  client        Client?   @relation(fields: [clientId], references: [id])
+  sessions      Session[]
+  notifications Notification[]
+  activities    Activity[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
-enum Role {
-  ADMIN         // システム管理者（弊社）
-  CLIENT_ADMIN  // クライアント管理者
-  DEVELOPER     // 設定変更権限を持つユーザー
-  VIEWER        // 閲覧専用ユーザー
+// セッション管理（認証用）
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+  
+  createdAt    DateTime @default(now())
 }
 
-enum DeviceStatus {
-  ONLINE
-  OFFLINE
-  MAINTENANCE
+// デバイスモデル
+model Device {
+  id          String  @id @default(uuid())
+  name        String
+  type        String  // カメラ、センサーなど
+  serialNumber String? @unique
+  status      String  // オンライン、オフラインなど
+  location    String?
+  ipAddress   String?
+  settings    Json?   // デバイス固有の設定
+  isActive    Boolean @default(true)
+  
+  // リレーション
+  clientId    String?
+  client      Client? @relation(fields: [clientId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// プロジェクトモデル
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  status      String   // 進行中、完了など
+  startDate   DateTime?
+  endDate     DateTime?
+  
+  // リレーション
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// アクティビティログ
+model Activity {
+  id          String   @id @default(uuid())
+  action      String   // ログイン、データ更新など
+  details     String?
+  ipAddress   String?
+  
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
+
+// 通知モデル
+model Notification {
+  id          String   @id @default(uuid())
+  type        String   // アラート、情報など
+  title       String
+  message     String
+  isRead      Boolean  @default(false)
+  
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
 }
