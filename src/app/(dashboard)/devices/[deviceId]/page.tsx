@@ -497,72 +497,154 @@ export default function DeviceDetailPage() {
     }
   }
   
-  // Wi-Fi設定の追加
-  const handleAddWifiNetwork = async () => {
-    if (!newSsid.trim()) {
-      toast.error('SSIDを入力してください');
-      return;
-    }
+  // Wi-Fi設定追加ダイアログ
+  const WifiAddDialog = () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [localSsid, setLocalSsid] = useState('');
+    const [localPassword, setLocalPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
+    const handleOpenChange = (open: boolean) => {
+      setIsOpen(open);
+      if (!open) {
+        // ダイアログが閉じるときに入力値をリセット
+        setLocalSsid('');
+        setLocalPassword('');
+      }
+    };
+    
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!localSsid.trim()) {
+        toast.error('SSIDを入力してください');
+        return;
+      }
+      
+      setIsSubmitting(true);
+      
+      try {
+        // 新しいWi-Fi設定
+        const newNetwork = { 
+          ssid: localSsid, 
+          password: localPassword || undefined 
+        };
+        
+        // Wi-Fi設定追加処理を呼び出し
+        await handleAddWifiNetwork(newNetwork);
+        
+        // 成功したらダイアログを閉じる
+        setIsOpen(false);
+      } catch (error) {
+        console.error('Wi-Fi設定の追加に失敗しました:', error);
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+    
+    return (
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="text-sm">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Wi-Fi追加
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>Wi-Fi設定の追加</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ssid">SSID</Label>
+                <Input
+                  id="ssid"
+                  value={localSsid}
+                  onChange={(e) => setLocalSsid(e.target.value)}
+                  placeholder="ネットワーク名"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">パスワード</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={localPassword}
+                  onChange={(e) => setLocalPassword(e.target.value)}
+                  placeholder="パスワード"
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex flex-row justify-end space-x-2">
+              <Button 
+                type="submit" 
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    追加中...
+                  </>
+                ) : '追加'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                閉じる
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  // Wi-Fi設定の追加（コンポーネントから呼び出される関数）
+  const handleAddWifiNetwork = async (newNetwork: { ssid: string, password?: string }) => {
     if (!device?.device.id) {
       toast.error('デバイスIDがありません');
-      return;
+      throw new Error('デバイスIDがありません');
     }
     
     if (!actcastClient) {
       toast.error('APIクライアントの初期化に失敗しました');
-      return;
+      throw new Error('APIクライアントの初期化に失敗しました');
     }
     
-    setIsAddingNetwork(true);
-    
     try {
-      // 新しいWi-Fi設定
-      const newNetwork = { 
-        ssid: newSsid, 
-        password: newPassword || undefined 
-      };
-      
       // 既存のSSIDと重複していないか確認
-      const existingNetwork = wifiNetworks.find(network => network.ssid === newSsid);
+      const existingNetwork = wifiNetworks.find(network => network.ssid === newNetwork.ssid);
       if (existingNetwork) {
         // 確認ダイアログを表示
-        if (!confirm(`「${newSsid}」は既に登録されています。設定を上書きしますか？`)) {
-          setIsAddingNetwork(false);
+        if (!confirm(`「${newNetwork.ssid}」は既に登録されています。設定を上書きしますか？`)) {
           return;
         }
         
         // 上書きの場合は既存のものを削除
-        const filteredNetworks = wifiNetworks.filter(network => network.ssid !== newSsid);
+        const filteredNetworks = wifiNetworks.filter(network => network.ssid !== newNetwork.ssid);
         // 新しい設定を追加
         const updatedNetworks = [...filteredNetworks, newNetwork];
         
         // APIを呼び出してWi-Fi設定を更新
-        await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+        console.log('Wi-Fi設定を更新します:', JSON.stringify(updatedNetworks, null, 2));
+        const result = await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+        console.log('Wi-Fi設定の更新結果:', result);
         
         // フロントエンドのステートを更新
         setWifiNetworks(updatedNetworks);
         
-        // 入力フィールドをクリア
-        setNewSsid('');
-        setNewPassword('');
-        
-        toast.success(`Wi-Fi設定「${newSsid}」を更新しました`);
+        toast.success(`Wi-Fi設定「${newNetwork.ssid}」を更新しました`);
       } else {
         // 現在のネットワーク設定に追加
         const updatedNetworks = [...wifiNetworks, newNetwork];
         
         // APIを呼び出してWi-Fi設定を更新
-        await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+        console.log('Wi-Fi設定を更新します:', JSON.stringify(updatedNetworks, null, 2));
+        const result = await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+        console.log('Wi-Fi設定の更新結果:', result);
         
         // フロントエンドのステートを更新
         setWifiNetworks(updatedNetworks);
         
-        // 入力フィールドをクリア
-        setNewSsid('');
-        setNewPassword('');
-        
-        toast.success(`Wi-Fi設定「${newSsid}」を追加しました`);
+        toast.success(`Wi-Fi設定「${newNetwork.ssid}」を追加しました`);
       }
     } catch (error) {
       console.error('Wi-Fi設定の追加に失敗しました:', error);
@@ -571,10 +653,9 @@ export default function DeviceDetailPage() {
       } else {
         toast.error('Wi-Fi設定の追加に失敗しました');
       }
-    } finally {
-      setIsAddingNetwork(false);
+      throw error;
     }
-  }
+  };
   
   // Wi-Fi設定の削除
   const handleRemoveWifiNetwork = async (ssid: string) => {
@@ -588,17 +669,14 @@ export default function DeviceDetailPage() {
       return;
     }
     
-    // 削除前に確認（確認ダイアログをカスタムUIに変更することも検討可能）
-    if (!confirm(`Wi-Fi設定「${ssid}」を削除してもよろしいですか？`)) {
-      return;
-    }
-    
     try {
       // 現在のネットワーク設定から削除
       const updatedNetworks = wifiNetworks.filter(network => network.ssid !== ssid);
       
       // APIを呼び出してWi-Fi設定を更新
-      await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+      console.log('Wi-Fi設定を更新します:', JSON.stringify(updatedNetworks, null, 2));
+      const result = await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+      console.log('Wi-Fi設定の更新結果:', result);
       
       // フロントエンドのステートを更新
       setWifiNetworks(updatedNetworks);
@@ -612,7 +690,48 @@ export default function DeviceDetailPage() {
         toast.error('Wi-Fi設定の削除に失敗しました');
       }
     }
-  }
+  };
+  
+  // Wi-Fi設定の順番を変更する
+  const handleMoveWifiNetwork = async (index: number, direction: 'up' | 'down') => {
+    if (index < 0 || index >= wifiNetworks.length) return;
+    
+    // 移動先のインデックスを計算
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    // 範囲外の場合は処理しない
+    if (newIndex < 0 || newIndex >= wifiNetworks.length) return;
+    
+    // 配列のコピーを作成
+    const updatedNetworks = [...wifiNetworks];
+    
+    // 要素を入れ替え
+    [updatedNetworks[index], updatedNetworks[newIndex]] = [updatedNetworks[newIndex], updatedNetworks[index]];
+    
+    try {
+      if (!device?.device.id || !actcastClient) {
+        toast.error('デバイス情報の取得に失敗しました');
+        return;
+      }
+      
+      // APIを呼び出してWi-Fi設定を更新
+      console.log('Wi-Fi設定の順番を変更します:', JSON.stringify(updatedNetworks, null, 2));
+      const result = await actcastClient.updateDeviceWifiSettings(device.device.id, updatedNetworks);
+      console.log('Wi-Fi設定の更新結果:', result);
+      
+      // フロントエンドのステートを更新
+      setWifiNetworks(updatedNetworks);
+      
+      toast.success('Wi-Fi設定の順番を変更しました');
+    } catch (error) {
+      console.error('Wi-Fi設定の順番変更に失敗しました:', error);
+      if (error instanceof Error) {
+        toast.error(`Wi-Fi設定の順番変更に失敗しました: ${error.message}`);
+      } else {
+        toast.error('Wi-Fi設定の順番変更に失敗しました');
+      }
+    }
+  };
 
   // 検知エディタの表示
   const renderDetectionEditor = () => {
@@ -1696,65 +1815,7 @@ export default function DeviceDetailPage() {
       <div className="bg-white shadow rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-medium text-gray-900">ネットワーク情報</h2>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="text-sm">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Wi-Fi追加
-              </Button>
-            </DialogTrigger>
-            <DialogContent 
-              className="sm:max-w-[425px] pointer-events-auto" 
-              onInteractOutside={(e) => e.preventDefault()} 
-              onEscapeKeyDown={(e) => e.preventDefault()}
-            >
-              <DialogHeader>
-                <DialogTitle>Wi-Fi設定の追加</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="ssid">SSID</Label>
-                  <Input
-                    id="ssid"
-                    value={newSsid}
-                    onChange={(e) => setNewSsid(e.target.value)}
-                    placeholder="ネットワーク名"
-                    className="z-10"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">パスワード</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="パスワード"
-                    className="z-10"
-                  />
-                </div>
-              </div>
-              <DialogFooter className="flex flex-row justify-end space-x-2">
-                <Button 
-                  type="submit" 
-                  onClick={handleAddWifiNetwork}
-                  disabled={isAddingNetwork}
-                >
-                  {isAddingNetwork ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      追加中...
-                    </>
-                  ) : '追加'}
-                </Button>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    閉じる
-                  </Button>
-                </DialogClose>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <WifiAddDialog />
         </div>
         
         {/* Wi-Fi接続状態 */}
@@ -1814,13 +1875,31 @@ export default function DeviceDetailPage() {
                     <div className="text-xs text-gray-500">パスワード: ********</div>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setWifiToDelete(network.ssid)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleMoveWifiNetwork(index, 'up')}
+                    disabled={index === 0}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleMoveWifiNetwork(index, 'down')}
+                    disabled={index === wifiNetworks.length - 1}
+                  >
+                    <ArrowUpDown className="h-4 w-4 rotate-180" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setWifiToDelete(network.ssid)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))
           ) : (

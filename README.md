@@ -47,6 +47,40 @@ Cloud Runにデプロイするためのコントロールパネルアプリケ�
 2. Google Cloud Secret Managerを使用してシークレットを管理する
 3. Cloud Runにデプロイする際はWorkload Identityを使用する
 
+## 開発環境のセットアップ
+
+### データベースのセットアップ
+1. PostgreSQLをDockerで起動する
+```bash
+docker compose up -d
+```
+
+2. マイグレーションを実行してスキーマを作成する
+```bash
+npx prisma migrate dev --name initial_migration
+```
+
+3. シードデータを投入する（開発用アカウント作成）
+```bash
+npm run prisma:seed
+```
+
+4. Prismaクライアントを生成する
+```bash
+npx prisma generate
+```
+
+### 開発サーバーの起動
+```bash
+npm run dev
+```
+
+### テスト用アカウント
+- 管理者: admin@coumera.com / admin123
+- クライアント管理者: clientadmin@example.com / demo123
+- 開発者: developer@example.com / developer123
+- 閲覧者: viewer@example.com / viewer123
+
 ## デプロイ方法
 
 アプリケーションをデプロイするには、以下の手順に従ってください：
@@ -74,6 +108,7 @@ Cloud Runにデプロイするためのコントロールパネルアプリケ�
 - `GOOGLE_CLOUD_STORAGE_BUCKET`: 画像を保存するGCS（Google Cloud Storage）バケット名
 - `NEXTAUTH_SECRET`: NextAuth.jsで使用する秘密鍵
 - `NEXTAUTH_URL`: アプリケーションのベースURL
+
 # 開発メモ
 
 ## 実装予定機能リスト
@@ -81,19 +116,21 @@ Cloud Runにデプロイするためのコントロールパネルアプリケ�
 ### クライアント・ユーザー管理機能
 
 #### 1. クライアント・ユーザー登録
-- [ ] データベーススキーマ設計（クライアント・ユーザーテーブル、関連テーブル）
+- [x] データベーススキーマ設計（クライアント・ユーザーテーブル、関連テーブル）
+- [x] ロールの定義（ADMIN, CLIENT_ADMIN, DEVELOPER, VIEWER）
 - [ ] 登録フォームとバリデーション機能
 - [ ] メール認証システム
 - [ ] パスワード管理（初期発行・リセット機能）
 
 #### 2. クライアント・ユーザー管理
+- [x] ユーザー管理API（一覧、作成、更新、削除）
 - [ ] 一覧表示・検索・フィルタリング機能
 - [ ] 詳細情報編集インターフェース
-- [ ] アクセス権限・ロール設定管理
+- [x] アクセス権限・ロール設定管理
 - [ ] アカウント状態管理（有効/無効/停止など）
 
 #### 3. 権限管理と表示制限
-- [ ] ロールベースのアクセス制御（RBAC）実装
+- [x] ロールベースのアクセス制御（RBAC）実装
 - [ ] 権限レベル設定（管理者/一般ユーザー/閲覧専用など）
 - [ ] 権限に基づくUI要素の条件付き表示
 - [ ] デバイスアクセス権限の管理
