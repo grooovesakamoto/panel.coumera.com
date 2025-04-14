@@ -122,15 +122,15 @@ export class ActcastClient {
     return response;
   }
 
-  // デバイスの写真を要求
-  async requestDevicePhoto(groupId: string, deviceId: string): Promise<void> {
+  // デバイスの写真撮影を要求（POST）
+  async requestPhotoCapture(groupId: string, deviceId: string): Promise<void> {
     if (!groupId || !deviceId) {
-      console.error('写真要求エラー: groupIdまたはdeviceIdが未指定', { groupId, deviceId });
+      console.error('写真撮影要求エラー: groupIdまたはdeviceIdが未指定', { groupId, deviceId });
       throw new Error('グループIDまたはデバイスIDが指定されていません');
     }
     
     const url = `${this.baseUrl}/groups/${groupId}/devices/${deviceId}/photo`;
-    console.log(`写真要求リクエスト: ${url}, グループID: ${groupId}`);
+    console.log(`写真撮影を要求します: ${url}, グループID: ${groupId}`);
     
     try {
       const response = await fetch(url, {
@@ -140,42 +140,47 @@ export class ActcastClient {
         }
       });
 
-      console.log(`写真要求レスポンス: ステータス ${response.status} ${response.statusText}`);
+      console.log(`写真撮影要求レスポンス: ステータス ${response.status} ${response.statusText}`);
       
       // APIの仕様: 202 Acceptedが成功レスポンス
       if (response.status !== 202) {
         const errorText = await response.text().catch(() => '(レスポンステキストなし)');
-        console.error(`写真要求エラー: 予期せぬレスポンスステータス ${response.status}`, errorText);
-        throw new Error(`写真要求に失敗しました (${response.status}): ${response.statusText}`);
+        console.error(`写真撮影要求エラー: 予期せぬレスポンスステータス ${response.status}`, errorText);
+        throw new Error(`写真撮影要求に失敗しました (${response.status}): ${response.statusText}`);
       }
       
       // レスポンスボディ（存在する場合）をログに出力
       try {
         const responseText = await response.text();
         if (responseText) {
-          console.log('写真要求レスポンスボディ:', responseText);
+          console.log('写真撮影要求レスポンスボディ:', responseText);
         }
       } catch (e) {
         // レスポンスボディ取得エラーは無視
       }
     } catch (error) {
-      console.error('写真要求エラー:', error);
+      console.error('写真撮影要求エラー:', error);
       throw error;
     }
   }
+  
+  // 後方互換性のため元のメソッド名を維持
+  async requestDevicePhoto(groupId: string, deviceId: string): Promise<void> {
+    return this.requestPhotoCapture(groupId, deviceId);
+  }
 
-  // デバイスの写真を取得
-  async getDevicePhoto(groupId: string, deviceId: string): Promise<string | null> {
+  // 直近に撮影された写真を取得（GET）
+  async getLastCapturedPhoto(groupId: string, deviceId: string): Promise<string | null> {
     try {
       if (!groupId || !deviceId) {
         console.error('写真取得エラー: groupIdまたはdeviceIdが未指定', { groupId, deviceId });
         return null;
       }
       
-      console.log(`写真取得開始 - デバイスID: ${deviceId}, グループID: ${groupId}, APIトークン: ${this.config.apiToken.substring(0, 5)}...`);
+      console.log(`写真データの取得開始 - デバイスID: ${deviceId}, グループID: ${groupId}, APIトークン: ${this.config.apiToken.substring(0, 5)}...`);
       
       const url = `${this.baseUrl}/groups/${groupId}/devices/${deviceId}/photo`;
-      console.log(`写真取得リクエスト: ${url}, グループID: ${groupId}`);
+      console.log(`写真データ取得リクエスト: ${url}, グループID: ${groupId}`);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -184,10 +189,10 @@ export class ActcastClient {
         }
       });
 
-      console.log(`写真取得レスポンス: ステータス ${response.status} ${response.statusText}`);
+      console.log(`写真データ取得レスポンス: ステータス ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
-        console.error(`Failed to get device photo: ${response.status} ${response.statusText}`);
+        console.error(`写真データの取得に失敗: ${response.status} ${response.statusText}`);
         if (response.status === 404) {
           console.error('写真取得エラー: デバイスが指定されたグループに存在しないか、写真がまだ準備されていません。デバイスのグループを確認してください。');
         }
@@ -196,7 +201,7 @@ export class ActcastClient {
 
       // JSONレスポンスを解析
       const data = await response.json();
-      console.log('写真取得データ:', JSON.stringify(data, null, 2));
+      console.log('写真データ取得結果:', JSON.stringify(data, null, 2));
       
       // photoプロパティが存在しない場合のエラーハンドリング
       if (!data.photo) {
@@ -212,9 +217,14 @@ export class ActcastClient {
 
       return data.photo.url;
     } catch (error) {
-      console.error('Failed to get device photo:', error);
+      console.error('写真データ取得処理でエラーが発生:', error);
       return null;
     }
+  }
+  
+  // 後方互換性のため元のメソッド名を維持
+  async getDevicePhoto(groupId: string, deviceId: string): Promise<string | null> {
+    return this.getLastCapturedPhoto(groupId, deviceId);
   }
 
   // デバイス設定の更新
@@ -414,17 +424,25 @@ export function useDevicePhoto(groupId?: string, deviceId?: string) {
       
       console.log(`写真取得処理: グループID=${groupId}, デバイスID=${deviceId}`);
       
-      // 写真を要求
-      await client.requestDevicePhoto(groupId, deviceId);
+      // ステップ1: 写真撮影を要求（POSTリクエスト - 1回のみ実行）
+      try {
+        console.log(`ステップ1: デバイスに写真撮影を要求します`);
+        await client.requestPhotoCapture(groupId, deviceId);
+        console.log(`写真撮影の要求が完了しました。デバイスが処理中です。`);
+      } catch (err) {
+        // 撮影要求自体が失敗した場合はここで処理を終了
+        const message = err instanceof Error ? err.message : '不明なエラー';
+        console.error('写真撮影の要求に失敗しました:', err);
+        setError(`写真撮影の要求に失敗しました: ${message}`);
+        setLoading(false);
+        return;
+      }
+      
+      // ステップ2: 写真データの取得（GETリクエスト - リトライあり）
+      console.log(`ステップ2: 撮影された写真データの取得を開始します`);
       
       // 写真取得のリトライロジック
       const maxRetries = 12; // リトライ回数を増やして約1分間の処理を実現
-      const initialWaitTime = 3000; // 初回の待機時間は3秒のまま
-      let retryCount = 0;
-      let photoData = null;
-      
-      // リトライの間隔設定（秒）
-      // 初期の数回は短い間隔で、その後長い間隔に
       const waitTimePattern = [
         3, // 1回目: 3秒
         4, // 2回目: 4秒
@@ -440,38 +458,42 @@ export function useDevicePhoto(groupId?: string, deviceId?: string) {
         9  // 12回目: 9秒
       ]; // 合計: 約70秒
       
+      let retryCount = 0;
+      let photoData = null;
+      
       while (retryCount < maxRetries) {
-        // 待機時間を取得（パターンから、または増分方式で）
+        // 待機時間を取得
         const waitTime = waitTimePattern[retryCount] * 1000;
         const elapsedTime = waitTimePattern.slice(0, retryCount).reduce((sum, time) => sum + time, 0);
         const totalTime = elapsedTime + waitTimePattern[retryCount];
         
-        console.log(`写真取得を待機中... (${retryCount + 1}/${maxRetries}回目, ${waitTime}ms, 経過時間: ${elapsedTime}秒, 合計待機時間: 約${totalTime}秒)`);
+        console.log(`写真データ取得の待機中... (${retryCount + 1}/${maxRetries}回目, ${waitTime}ms, 経過時間: ${elapsedTime}秒, 合計待機時間: 約${totalTime}秒)`);
         
         // 指定時間待機
         await new Promise(resolve => setTimeout(resolve, waitTime));
         
-        // 写真を取得
-        photoData = await client.getDevicePhoto(groupId, deviceId);
+        // 写真を取得（GETリクエスト）
+        console.log(`写真データの取得を試行します (${retryCount + 1}/${maxRetries}回目)`);
+        photoData = await client.getLastCapturedPhoto(groupId, deviceId);
         
         // 写真が取得できたらループを抜ける
         if (photoData) {
-          console.log(`写真の取得に成功しました (${retryCount + 1}回目の試行, 経過時間: 約${elapsedTime}秒)`);
+          console.log(`写真データの取得に成功しました (${retryCount + 1}回目の試行, 経過時間: 約${elapsedTime}秒)`);
           break;
         }
         
-        console.log(`写真がまだ準備できていません (${retryCount + 1}/${maxRetries}回目の試行)`);
+        console.log(`写真データがまだ準備できていません (${retryCount + 1}/${maxRetries}回目の試行)`);
         retryCount++;
       }
       
       if (photoData) {
         setPhotoUrl(photoData);
       } else {
-        setError('写真の準備が完了しませんでした。ネットワーク状態をご確認の上、再度お試しください。');
+        setError('写真データの準備が完了しませんでした。ネットワーク状態をご確認の上、再度お試しください。');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : '不明なエラー';
-      console.error('写真要求エラー:', err);
+      console.error('写真取得処理でエラーが発生:', err);
       setError(`写真の取得中にエラーが発生しました: ${message}`);
     } finally {
       setLoading(false);
