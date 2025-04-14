@@ -273,20 +273,33 @@ export class ActcastClient {
 
   // Wi-Fi設定を更新するメソッド
   async updateDeviceWifiSettings(deviceId: string, wifiNetworks: Array<{ ssid: string, password?: string }>): Promise<any> {
-    const url = `${this.baseUrl}/groups/${this.config.groupId}/devices/${deviceId}/wifi`;
+    // 正しいAPIエンドポイントを使用（/wifi を削除）
+    const url = `${this.baseUrl}/groups/${this.config.groupId}/devices/${deviceId}`;
     
     try {
+      // wifiNetworksが配列でない場合は配列に変換（念のため）
+      const networksArray = Array.isArray(wifiNetworks) ? wifiNetworks : [];
+      
+      // APIの仕様に合わせたリクエストボディを構築
+      const requestBody = {
+        access_points: networksArray.map(network => ({
+          modified: true,
+          ssid: network.ssid,
+          passphrase: network.password // passwordをpassphraseに変換
+        }))
+      };
+      
       console.log('Updating Wi-Fi settings...');
-      console.log('Request data:', JSON.stringify({ wifi_networks: wifiNetworks }, null, 2));
+      console.log('Request data:', JSON.stringify(requestBody, null, 2));
       console.log('Request URL:', url);
       
       const response = await fetch(url, {
-        method: 'PUT',
+        method: 'PATCH', // PUTからPATCHに変更
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `token ${this.config.apiToken}`,
         },
-        body: JSON.stringify({ wifi_networks: wifiNetworks })
+        body: JSON.stringify(requestBody)
       });
       
       console.log('Response status:', response.status);
