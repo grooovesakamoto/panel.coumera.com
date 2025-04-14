@@ -418,15 +418,35 @@ export function useDevicePhoto(groupId?: string, deviceId?: string) {
       await client.requestDevicePhoto(groupId, deviceId);
       
       // 写真取得のリトライロジック
-      const maxRetries = 5;
-      const initialWaitTime = 3000; // 初回の待機時間を3秒に延長
+      const maxRetries = 12; // リトライ回数を増やして約1分間の処理を実現
+      const initialWaitTime = 3000; // 初回の待機時間は3秒のまま
       let retryCount = 0;
       let photoData = null;
       
+      // リトライの間隔設定（秒）
+      // 初期の数回は短い間隔で、その後長い間隔に
+      const waitTimePattern = [
+        3, // 1回目: 3秒
+        4, // 2回目: 4秒
+        5, // 3回目: 5秒
+        5, // 4回目: 5秒
+        5, // 5回目: 5秒
+        5, // 6回目: 5秒
+        6, // 7回目: 6秒
+        6, // 8回目: 6秒
+        7, // 9回目: 7秒
+        7, // 10回目: 7秒
+        8, // 11回目: 8秒
+        9  // 12回目: 9秒
+      ]; // 合計: 約70秒
+      
       while (retryCount < maxRetries) {
-        // 待機時間を計算（徐々に長くする）
-        const waitTime = initialWaitTime + (retryCount * 1000);
-        console.log(`写真取得を待機中... (${retryCount + 1}/${maxRetries}回目, ${waitTime}ms)`);
+        // 待機時間を取得（パターンから、または増分方式で）
+        const waitTime = waitTimePattern[retryCount] * 1000;
+        const elapsedTime = waitTimePattern.slice(0, retryCount).reduce((sum, time) => sum + time, 0);
+        const totalTime = elapsedTime + waitTimePattern[retryCount];
+        
+        console.log(`写真取得を待機中... (${retryCount + 1}/${maxRetries}回目, ${waitTime}ms, 経過時間: ${elapsedTime}秒, 合計待機時間: 約${totalTime}秒)`);
         
         // 指定時間待機
         await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -436,7 +456,7 @@ export function useDevicePhoto(groupId?: string, deviceId?: string) {
         
         // 写真が取得できたらループを抜ける
         if (photoData) {
-          console.log(`写真の取得に成功しました (${retryCount + 1}回目の試行)`);
+          console.log(`写真の取得に成功しました (${retryCount + 1}回目の試行, 経過時間: 約${elapsedTime}秒)`);
           break;
         }
         
@@ -447,7 +467,7 @@ export function useDevicePhoto(groupId?: string, deviceId?: string) {
       if (photoData) {
         setPhotoUrl(photoData);
       } else {
-        setError('写真の準備が完了しませんでした。再度お試しください。');
+        setError('写真の準備が完了しませんでした。ネットワーク状態をご確認の上、再度お試しください。');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : '不明なエラー';
