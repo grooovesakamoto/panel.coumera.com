@@ -184,3 +184,93 @@ npm run dev
   - .gitignoreの設定
   - 環境変数テンプレートの追加
   - セキュリティ関連ファイルの削除
+
+# Coumera管理パネル
+
+クライアント管理・ユーザー管理システム
+
+## データベース設定
+
+このプロジェクトはPostgreSQLとPrismaを使用しています。
+
+### 環境構築手順
+
+1. 依存関係のインストール
+
+```bash
+npm install
+```
+
+2. 環境変数の設定
+
+`.env.example`ファイルを`.env`にコピーして、必要な値を設定します。
+
+```bash
+cp .env.example .env
+```
+
+3. データベースのマイグレーション
+
+```bash
+npm run prisma:migrate:dev
+```
+
+4. テストデータの投入
+
+```bash
+npm run prisma:seed
+```
+
+5. Prisma Studioの起動（データベース管理ツール）
+
+```bash
+npm run prisma:studio
+```
+
+## 開発環境の起動
+
+```bash
+npm run dev
+```
+
+## Prismaの使用方法
+
+### 新しいマイグレーションの作成
+
+モデルを変更した後に実行します。
+
+```bash
+npm run prisma:migrate:dev -- --name <マイグレーション名>
+```
+
+### Prisma Clientの再生成
+
+スキーマを変更した後に実行します。
+
+```bash
+npm run prisma:generate
+```
+
+### データベースのリセット
+
+開発中にデータベースをリセットする場合に使用します。
+
+```bash
+npm run prisma:reset
+```
+
+## テスト用アカウント
+
+- 管理者: admin@example.com / Admin123456
+- クライアント管理者: client-admin@example.com / ClientAdmin123
+- 一般ユーザー: user@example.com / User123456
+
+## プロジェクト構成
+
+- `prisma/`: データベーススキーマとマイグレーションファイル
+- `src/`: ソースコード
+  - `app/`: Next.jsアプリケーション
+  - `components/`: 再利用可能なコンポーネント
+  - `lib/`: ユーティリティ関数とヘルパー
+  - `hooks/`: カスタムReactフック
+  - `types/`: TypeScript型定義

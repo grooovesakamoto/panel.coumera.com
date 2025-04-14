@@ -92,3 +92,16 @@ Thumbs.db
 
 # 過去のソースコードディレクトリ
 /old_src
+
+# Prisma
+src/generated/prisma/**/libquery_engine-*
+src/generated/prisma/**/libquery_engine.*
+src/generated/prisma/**/*.dylib.node
+src/generated/prisma/schema.prisma
+
+# Local PostgreSQL configuration files
+pg_hba.conf
+postgresql.conf
+
+# Cursor IDE settings
+.cursor/
